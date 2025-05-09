@@ -14,6 +14,7 @@ import {
 // Constants
 const API_BASE =
   process.env.REACT_APP_API_BASE_URL || 'https://spy-nav-backend.onrender.com'
+console.log('Using API_BASE:', API_BASE) // Confirm API base URL at startup
 
 // App Component
 function App() {
@@ -27,9 +28,9 @@ function App() {
     try {
       setLoading(true)
       console.log('Fetching data from:', `${API_BASE}/api/spy-nav`)
-      const navRes = await axios.get(`${API_BASE}/api/spy-nav`, { timeout: 10000 })
+      const navRes = await axios.get(`${API_BASE}/api/spy-nav`, { timeout: 15000 })
       console.log('Fetching data from:', `${API_BASE}/api/spy-price`)
-      const priceRes = await axios.get(`${API_BASE}/api/spy-price`, { timeout: 10000 })
+      const priceRes = await axios.get(`${API_BASE}/api/spy-price`, { timeout: 15000 })
 
       console.log('NAV Response:', navRes.data)
       console.log('Price Response:', priceRes.data)
@@ -66,9 +67,21 @@ function App() {
 
   // Effects
   useEffect(() => {
-    fetchData()
-    const iv = setInterval(fetchData, 6000)
-    return () => clearInterval(iv)
+    console.log('useEffect triggered')
+    try {
+      fetchData()
+      const iv = setInterval(() => {
+        console.log('Interval triggered fetchData')
+        fetchData()
+      }, 6000)
+      return () => {
+        console.log('Cleaning up interval')
+        clearInterval(iv)
+      }
+    } catch (err) {
+      console.error('Error in useEffect:', err.message)
+      setError('Failed to initialize data fetching')
+    }
   }, [])
 
   // Render
