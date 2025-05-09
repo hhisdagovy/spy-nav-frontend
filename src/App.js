@@ -17,9 +17,9 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [navRes, priceRes] = await Promise.all([
-        axios.get('http://localhost:5050/api/spy-nav'),
-        axios.get('http://localhost:5050/api/spy-price')
+        const API = process.env.REACT_APP_API_BASE_URL;
+        const navRes   = await axios.get(`${API}/api/spy-nav`);
+        const priceRes = await axios.get(`${API}/api/spy-price`);
       ]);
 
       const time  = new Date().toLocaleTimeString();
