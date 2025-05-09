@@ -21,7 +21,7 @@ function App() {
   // State Management
   const [dataPoints, setDataPoints] = useState([])
   const [error, setError] = useState(null)
-  [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
 
   // Retry helper for frontend requests
   const fetchWithRetry = async (url, retries = 3, delay = 1000) => {
@@ -41,12 +41,15 @@ function App() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      // Use URL construction to avoid double slashes
-      const navUrl = new URL('/api/spy-nav', API_BASE).toString()
+      // Normalize API_BASE by removing trailing slashes
+      const baseUrl = API_BASE.replace(/\/+$/, '')
+      console.log('Normalized API_BASE:', baseUrl)
+      
+      const navUrl = new URL('/api/spy-nav', baseUrl).toString()
       console.log('Fetching data from:', navUrl)
       const navRes = await fetchWithRetry(navUrl)
       
-      const priceUrl = new URL('/api/spy-price', API_BASE).toString()
+      const priceUrl = new URL('/api/spy-price', baseUrl).toString()
       console.log('Fetching data from:', priceUrl)
       const priceRes = await fetchWithRetry(priceUrl)
 
@@ -77,7 +80,6 @@ function App() {
         status: err.response?.status,
         url: err.config?.url,
       })
-      // Only set error if there’s no previous data
       if (dataPoints.length === 0) {
         setError(err.response?.data?.details || err.message || 'Failed to fetch data')
       }
