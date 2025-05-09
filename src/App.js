@@ -25,6 +25,9 @@ async function fetchData() {
       const next = [...dataPoints.slice(-19), { time, nav, price }];
       console.log('next datapoints:', next);
       setDataPoints(next);
+      
+        ...prev.slice(-19),
+        { time, nav, price }
       setError(null);
     } catch (err) {
       console.error(err);
