@@ -1,4 +1,4 @@
-// src/App.js
+// src/App.js (Updated with more logging)
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import {
@@ -67,12 +67,14 @@ function App() {
       const time = new Date().toLocaleTimeString()
       const nav = navRes.data.nav
       const price = priceRes.data.price
-      const difference = parseFloat((nav - price).toFixed(2)) // Calculate NAV - Price
+      const difference = parseFloat((nav - price).toFixed(2))
 
-      setDataPoints((prev) => [
-        ...prev.slice(-19),
-        { time, nav, price, difference },
-      ])
+      const newDataPoint = { time, nav, price, difference }
+      setDataPoints((prev) => {
+        const updated = [...prev.slice(-19), newDataPoint]
+        console.log('Updated dataPoints:', updated) // Debug log
+        return updated
+      })
       setError(null)
     } catch (err) {
       console.error('Fetch error:', {
@@ -86,6 +88,7 @@ function App() {
       }
     } finally {
       setLoading(false)
+      console.log('Loading state:', loading, 'Data points length:', dataPoints.length) // Debug log
     }
   }
 
@@ -122,7 +125,7 @@ function App() {
         <p className="text-red-400 text-lg mb-6">{error}</p>
       )}
 
-      {dataPoints.length > 0 && (
+      {dataPoints.length > 0 ? (
         <div className="w-full max-w-5xl space-y-8">
           {/* Current Values Card */}
           <div className="bg-gray-800 rounded-lg shadow-lg p-6 text-center">
@@ -230,6 +233,8 @@ function App() {
             </div>
           </div>
         </div>
+      ) : (
+        <p className="text-gray-400 text-lg">No data available to display charts.</p>
       )}
     </div>
   )
