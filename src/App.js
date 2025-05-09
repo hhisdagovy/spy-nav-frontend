@@ -52,7 +52,7 @@ function App() {
   // Effects
   useEffect(() => {
     fetchData()
-    const iv = setInterval(fetchData, 5000)
+    const iv = setInterval(fetchData, 6000) // Changed to 6 seconds to stay within Finnhub rate limits
     return () => clearInterval(iv)
   }, [])
 
