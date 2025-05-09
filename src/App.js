@@ -11,46 +11,57 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
+// Constants
 const API_BASE =
-  process.env.REACT_APP_API_BASE_URL ||
-  'https://spy-nav-backend.onrender.com'
+  process.env.REACT_APP_API_BASE_URL || 'https://spy-nav-backend.onrender.com'
 
+// App Component
 function App() {
+  // State Management
   const [dataPoints, setDataPoints] = useState([])
   const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true)
 
+  // Data Fetching
   const fetchData = async () => {
     try {
-      const navRes = await axios.get(`${API_BASE}/api/spy-nav`)
-      const priceRes = await axios.get(`${API_BASE}/api/spy-price`)
+      setLoading(true)
+      const navRes = await axios.get(`${API_BASE}/api/spy-nav`, { timeout: 10000 })
+      const priceRes = await axios.get(`${API_BASE}/api/spy-price`, { timeout: 10000 })
+
+      console.log('NAV Response:', navRes.data)
+      console.log('Price Response:', priceRes.data)
 
       const time = new Date().toLocaleTimeString()
       const nav = navRes.data.nav
       const price = priceRes.data.price
 
       setDataPoints((prev) => [
-        // keep only the last 19 entries
         ...prev.slice(-19),
-        // add the new point
         { time, nav, price },
       ])
       setError(null)
     } catch (err) {
-      console.error(err)
-      setError('Failed to fetch data')
+      console.error('Fetch error:', err.message, err.response?.data)
+      setError(err.response?.data?.details || 'Failed to fetch data')
+    } finally {
+      setLoading(false)
     }
   }
 
+  // Effects
   useEffect(() => {
     fetchData()
     const iv = setInterval(fetchData, 5000)
     return () => clearInterval(iv)
   }, [])
 
+  // Render
   return (
     <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-6 font-mono">
-      <h1 className="text-3xl mb-4">📊 Real‑Time SPY NAV vs Price</h1>
+      <h1 className="text-3xl mb-4">📊 Real-Time SPY NAV vs Price</h1>
 
+      {loading && <p className="text-yellow-400 mb-4">Loading...</p>}
       {error && <p className="text-red-400 mb-4">{error}</p>}
 
       {!error && dataPoints.length > 0 && (
