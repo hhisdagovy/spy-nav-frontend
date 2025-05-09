@@ -5,12 +5,11 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 
-const API_BASE = process.env.REACT_APP_API_BASE_URL
-  || 'https://spy-nav-backend.onrender.com';
+const API_BASE = 'https://spy-nav-backend.onrender.com';
 
-function App() {
-  const [dataPoints, setDataPoints] = useState([]);
-  const [error, setError] = useState(null);
+async function fetchData() {
+  const { data: { nav } }   = await axios.get(`${API_BASE}/api/spy-nav`);
+  const { data: { price } } = await axios.get(`${API_BASE}/api/spy-price`);
 
   const fetchData = async () => {
     try {
@@ -39,7 +38,7 @@ function App() {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
+
   return (
     <div style={{
       background: '#0f172a',
