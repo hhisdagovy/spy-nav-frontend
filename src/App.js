@@ -14,7 +14,7 @@ import {
 // Constants
 const API_BASE =
   process.env.REACT_APP_API_BASE_URL || 'https://spy-nav-backend.onrender.com'
-console.log('Using API_BASE:', API_BASE) // Confirm API base URL at startup
+console.log('Using API_BASE:', API_BASE)
 
 // App Component
 function App() {
@@ -23,17 +23,34 @@ function App() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // Retry helper for frontend requests
+  const fetchWithRetry = async (url, retries = 3, delay = 1000) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await axios.get(url, { timeout: 15000 })
+        return response
+      } catch (err) {
+        if (i === retries - 1) throw err
+        console.warn(`Retrying frontend request (${i + 1}/${retries}): ${url}, Error: ${err.message}`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+
   // Data Fetching
   const fetchData = async () => {
     try {
       setLoading(true)
-      console.log('Fetching data from:', `${API_BASE}/api/spy-nav`)
-      const navRes = await axios.get(`${API_BASE}/api/spy-nav`, { timeout: 15000 })
-      console.log('Fetching data from:', `${API_BASE}/api/spy-price`)
-      const priceRes = await axios.get(`${API_BASE}/api/spy-price`, { timeout: 15000 })
+      const navUrl = `${API_BASE}/api/spy-nav`
+      console.log('Fetching data from:', navUrl)
+      const navRes = await fetchWithRetry(navUrl)
+      
+      const priceUrl = `${API_BASE}/api/spy-price`
+      console.log('Fetching data from:', priceUrl)
+      const priceRes = await fetchWithRetry(priceUrl)
 
-      console.log('NAV Response:', navRes.data)
-      console.log('Price Response:', priceRes.data)
+      console.log('NAV Response:', navRes.data, 'Status:', navRes.status)
+      console.log('Price Response:', priceRes.data, 'Status:', priceRes.status)
 
       // Validate response structure
       if (!navRes.data.nav || typeof navRes.data.nav !== 'number') {
@@ -59,7 +76,10 @@ function App() {
         status: err.response?.status,
         url: err.config?.url,
       })
-      setError(err.response?.data?.details || err.message || 'Failed to fetch data')
+      // Only set error if there’s no previous data; otherwise, keep showing last successful data
+      if (dataPoints.length === 0) {
+        setError(err.response?.data?.details || err.message || 'Failed to fetch data')
+      }
     } finally {
       setLoading(false)
     }
@@ -89,10 +109,10 @@ function App() {
     <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-6 font-mono">
       <h1 className="text-3xl mb-4">📊 Real-Time SPY NAV vs Price</h1>
 
-      {loading && <p className="text-yellow-400 mb-4">Loading...</p>}
-      {error && <p className="text-red-400 mb-4">{error}</p>}
+      {loading && dataPoints.length === 0 && <p className="text-yellow-400 mb-4">Loading...</p>}
+      {error && dataPoints.length === 0 && <p className="text-red-400 mb-4">{error}</p>}
 
-      {!error && dataPoints.length > 0 && (
+      {dataPoints.length > 0 && (
         <div className="text-center mb-6">
           <p className="text-lg">
             NAV:{' '}
@@ -109,30 +129,32 @@ function App() {
         </div>
       )}
 
-      <div className="w-full max-w-4xl h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={dataPoints}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="time" stroke="#94a3b8" />
-            <YAxis stroke="#94a3b8" domain={['auto', 'auto']} />
-            <Tooltip />
-            <Line
-              type="monotone"
-              dataKey="nav"
-              stroke="#22c55e"
-              strokeWidth={3}
-              dot={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="price"
-              stroke="#3b82f6"
-              strokeWidth={3}
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {dataPoints.length > 0 && (
+        <div className="w-full max-w-4xl h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={dataPoints}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="time" stroke="#94a3b8" />
+              <YAxis stroke="#94a3b8" domain={['auto', 'auto']} />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="nav"
+                stroke="#22c55e"
+                strokeWidth={3}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="price"
+                stroke="#3b82f6"
+                strokeWidth={3}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   )
 }
