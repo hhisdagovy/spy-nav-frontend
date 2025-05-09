@@ -26,11 +26,21 @@ function App() {
   const fetchData = async () => {
     try {
       setLoading(true)
+      console.log('Fetching data from:', `${API_BASE}/api/spy-nav`)
       const navRes = await axios.get(`${API_BASE}/api/spy-nav`, { timeout: 10000 })
+      console.log('Fetching data from:', `${API_BASE}/api/spy-price`)
       const priceRes = await axios.get(`${API_BASE}/api/spy-price`, { timeout: 10000 })
 
       console.log('NAV Response:', navRes.data)
       console.log('Price Response:', priceRes.data)
+
+      // Validate response structure
+      if (!navRes.data.nav || typeof navRes.data.nav !== 'number') {
+        throw new Error('Invalid NAV data structure')
+      }
+      if (!priceRes.data.price || typeof priceRes.data.price !== 'number') {
+        throw new Error('Invalid price data structure')
+      }
 
       const time = new Date().toLocaleTimeString()
       const nav = navRes.data.nav
@@ -42,8 +52,13 @@ function App() {
       ])
       setError(null)
     } catch (err) {
-      console.error('Fetch error:', err.message, err.response?.data)
-      setError(err.response?.data?.details || 'Failed to fetch data')
+      console.error('Fetch error:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        url: err.config?.url,
+      })
+      setError(err.response?.data?.details || err.message || 'Failed to fetch data')
     } finally {
       setLoading(false)
     }
@@ -52,7 +67,7 @@ function App() {
   // Effects
   useEffect(() => {
     fetchData()
-    const iv = setInterval(fetchData, 6000) // Changed to 6 seconds to stay within Finnhub rate limits
+    const iv = setInterval(fetchData, 6000)
     return () => clearInterval(iv)
   }, [])
 
