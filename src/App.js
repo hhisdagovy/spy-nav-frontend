@@ -1,4 +1,4 @@
-// src/App.js (Updated with more logging)
+// src/App.js (Updated with better error handling)
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import {
@@ -18,18 +18,36 @@ const API_BASE =
   process.env.REACT_APP_API_BASE_URL || 'https://spy-nav-backend.onrender.com'
 console.log('Using API_BASE:', API_BASE)
 
+// Mock data for development/debugging
+const MOCK_DATA = [
+  { time: '10:00 AM', nav: 500.25, price: 499.75, difference: 0.50 },
+  { time: '10:01 AM', nav: 500.30, price: 499.80, difference: 0.50 },
+  { time: '10:02 AM', nav: 500.40, price: 499.85, difference: 0.55 },
+  // Add more mock data points as needed
+]
+
 // App Component
 function App() {
   // State Management
   const [dataPoints, setDataPoints] = useState([])
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [retryCount, setRetryCount] = useState(0)
+  const [useMockData, setUseMockData] = useState(false)
 
   // Retry helper for frontend requests
   const fetchWithRetry = async (url, retries = 3, delay = 1000) => {
     for (let i = 0; i < retries; i++) {
       try {
-        const response = await axios.get(url, { timeout: 15000 })
+        // Add headers if needed for authentication
+        const headers = {}
+        // If you have an API key or token, add it here
+        // headers.Authorization = `Bearer ${yourApiToken}`
+        
+        const response = await axios.get(url, { 
+          timeout: 15000,
+          headers
+        })
         return response
       } catch (err) {
         if (i === retries - 1) throw err
@@ -39,31 +57,67 @@ function App() {
     }
   }
 
+  // Handle enabling mock data mode
+  const enableMockData = () => {
+    setUseMockData(true)
+    setDataPoints(MOCK_DATA)
+    setLoading(false)
+    setError(null)
+  }
+
+  // Manual retry function
+  const handleRetry = () => {
+    setRetryCount(prevCount => prevCount + 1)
+    setError(null)
+    setLoading(true)
+  }
+
   // Data Fetching
   const fetchData = async () => {
+    // If mock data is enabled, don't fetch from API
+    if (useMockData) return
+    
     try {
       setLoading(true)
       const baseUrl = API_BASE.replace(/\/+$/, '')
       console.log('Normalized API_BASE:', baseUrl)
       
-      const navUrl = new URL('/api/spy-nav', baseUrl).toString()
-      console.log('Fetching data from:', navUrl)
-      const navRes = await fetchWithRetry(navUrl)
+      // Detailed error information
+      let errorDetails = {}
+
+      try {
+        const navUrl = new URL('/api/spy-nav', baseUrl).toString()
+        console.log('Fetching NAV data from:', navUrl)
+        const navRes = await fetchWithRetry(navUrl)
+        console.log('NAV Response:', navRes.data, 'Status:', navRes.status)
+        
+        errorDetails.navResponse = navRes.status
+        
+        if (!navRes.data.nav || typeof navRes.data.nav !== 'number') {
+          throw new Error('Invalid NAV data structure')
+        }
+      } catch (navErr) {
+        errorDetails.navError = `${navErr.message} (Status: ${navErr.response?.status || 'unknown'})`
+        throw navErr
+      }
       
-      const priceUrl = new URL('/api/spy-price', baseUrl).toString()
-      console.log('Fetching data from:', priceUrl)
-      const priceRes = await fetchWithRetry(priceUrl)
-
-      console.log('NAV Response:', navRes.data, 'Status:', navRes.status)
-      console.log('Price Response:', priceRes.data, 'Status:', priceRes.status)
-
-      if (!navRes.data.nav || typeof navRes.data.nav !== 'number') {
-        throw new Error('Invalid NAV data structure')
+      try {
+        const priceUrl = new URL('/api/spy-price', baseUrl).toString()
+        console.log('Fetching price data from:', priceUrl)
+        const priceRes = await fetchWithRetry(priceUrl)
+        console.log('Price Response:', priceRes.data, 'Status:', priceRes.status)
+        
+        errorDetails.priceResponse = priceRes.status
+        
+        if (!priceRes.data.price || typeof priceRes.data.price !== 'number') {
+          throw new Error('Invalid price data structure')
+        }
+      } catch (priceErr) {
+        errorDetails.priceError = `${priceErr.message} (Status: ${priceErr.response?.status || 'unknown'})`
+        throw priceErr
       }
-      if (!priceRes.data.price || typeof priceRes.data.price !== 'number') {
-        throw new Error('Invalid price data structure')
-      }
 
+      // If we got here, both requests were successful
       const time = new Date().toLocaleTimeString()
       const nav = navRes.data.nav
       const price = priceRes.data.price
@@ -83,18 +137,37 @@ function App() {
         status: err.response?.status,
         url: err.config?.url,
       })
+      
+      // Create a more descriptive error message
+      let errorMessage = 'Request failed: '
+      
+      if (err.response?.status === 401) {
+        errorMessage += 'Authentication error (401). API key may be invalid or missing.'
+      } else if (err.response?.status === 403) {
+        errorMessage += 'Access forbidden (403). You may not have permission to access this resource.'
+      } else if (err.response?.status === 404) {
+        errorMessage += 'API endpoint not found (404). Check that the server is running and the endpoint is correct.'
+      } else if (err.response?.status >= 500) {
+        errorMessage += `Server error (${err.response.status}). The server may be down or experiencing issues.`
+      } else if (err.code === 'ECONNABORTED') {
+        errorMessage += 'Request timed out. The server may be slow or unresponsive.'
+      } else if (err.message.includes('Network Error')) {
+        errorMessage += 'Network error. Check your internet connection or the server may be down.'
+      } else {
+        errorMessage += err.message || 'Unknown error'
+      }
+      
       if (dataPoints.length === 0) {
-        setError(err.response?.data?.details || err.message || 'Failed to fetch data')
+        setError(errorMessage)
       }
     } finally {
       setLoading(false)
-      console.log('Loading state:', loading, 'Data points length:', dataPoints.length) // Debug log
     }
   }
 
   // Effects
   useEffect(() => {
-    console.log('useEffect triggered')
+    console.log('useEffect triggered, retryCount:', retryCount)
     try {
       fetchData()
       const iv = setInterval(() => {
@@ -109,7 +182,7 @@ function App() {
       console.error('Error in useEffect:', err.message)
       setError('Failed to initialize data fetching')
     }
-  }, [])
+  }, [retryCount]) // Adding retryCount as a dependency
 
   // Render
   return (
@@ -121,8 +194,25 @@ function App() {
       {loading && dataPoints.length === 0 && (
         <p className="text-yellow-300 text-lg mb-6 animate-pulse">Loading...</p>
       )}
+      
       {error && dataPoints.length === 0 && (
-        <p className="text-red-400 text-lg mb-6">{error}</p>
+        <div className="bg-red-900/30 border border-red-500 rounded-lg p-4 mb-6 max-w-2xl w-full">
+          <p className="text-red-400 text-lg mb-2">{error}</p>
+          <div className="flex space-x-4 mt-4">
+            <button 
+              onClick={handleRetry}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+            >
+              Retry Connection
+            </button>
+            <button 
+              onClick={enableMockData}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
+            >
+              Use Demo Data
+            </button>
+          </div>
+        </div>
       )}
 
       {dataPoints.length > 0 ? (
@@ -136,13 +226,13 @@ function App() {
               <div>
                 <p className="text-lg text-gray-300">NAV</p>
                 <p className="text-3xl font-bold text-green-400">
-                  ${dataPoints[dataPoints.length - 1].nav}
+                  ${dataPoints[dataPoints.length - 1].nav.toFixed(2)}
                 </p>
               </div>
               <div>
                 <p className="text-lg text-gray-300">SPY Price</p>
                 <p className="text-3xl font-bold text-blue-400">
-                  ${dataPoints[dataPoints.length - 1].price}
+                  ${dataPoints[dataPoints.length - 1].price.toFixed(2)}
                 </p>
               </div>
               <div>
@@ -155,10 +245,15 @@ function App() {
                   }`}
                 >
                   {dataPoints[dataPoints.length - 1].difference >= 0 ? '+' : ''}$
-                  {dataPoints[dataPoints.length - 1].difference}
+                  {Math.abs(dataPoints[dataPoints.length - 1].difference).toFixed(2)}
                 </p>
               </div>
             </div>
+            {useMockData && (
+              <p className="text-yellow-300 text-sm mt-4">
+                Using demo data. Data shown is for demonstration purposes only.
+              </p>
+            )}
           </div>
 
           {/* NAV vs Price Chart */}
